@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>旅行プランニングアシスタントエージェント</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: 'Segoe UI', 'Meiryo', sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+        .container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #ccc; padding: 32px; }
+        h1 { text-align: center; color: #2c3e50; }
+        .agent-select { display: flex; justify-content: center; gap: 16px; margin-bottom: 24px; }
+        .agent-btn { padding: 10px 24px; border: none; border-radius: 4px; background: #3498db; color: #fff; font-size: 1rem; cursor: pointer; }
+        .agent-btn.selected { background: #2ecc71; }
+        #log { background: #f4f4f4; border-radius: 6px; min-height: 200px; padding: 16px; margin-bottom: 24px; overflow-y: auto; max-height: 300px; position: relative; }
+        .message { margin-bottom: 12px; }
+        .user { color: #2980b9; }
+        .agent { color: #27ae60; }
+        .message.system { color: #888; font-style: italic; }
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .spinner {
+            border: 4px solid #e0e0e0;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        form { display: flex; gap: 8px; }
+        input[type="text"] { flex: 1; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 1rem; }
+        button[type="submit"] { padding: 10px 24px; border: none; border-radius: 4px; background: #e67e22; color: #fff; font-size: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>旅行プランニングアシスタントエージェント</h1>
+        <div class="agent-select">
+            <button class="agent-btn selected" data-agent="basic">基本エージェント</button>
+            <button class="agent-btn" data-agent="advanced">高度エージェント</button>
+            <button class="agent-btn" data-agent="multi">マルチエージェント</button>
+        </div>
+        <div id="log">
+            <!-- ユーザーからの依頼とエージェントの最終回答のみ表示 -->
+        </div>
+        <div id="loading" class="loading-spinner" style="display:none;">
+            <div class="spinner"></div>
+        </div>
+        <form id="chat-form" autocomplete="off">
+            <input type="text" id="user-input" placeholder="旅行プランについて質問してください..." required>
+            <button type="submit">送信</button>
+        </form>
+    </div>
+    <script>
+        let agentType = 'basic';
+        let sessionId = Math.random().toString(36).substring(2);
+        const log = document.getElementById('log');
+        const form = document.getElementById('chat-form');
+        const input = document.getElementById('user-input');
+        const agentBtns = document.querySelectorAll('.agent-btn');
+        const loading = document.getElementById('loading');
+
+        // エージェント切り替え
+        agentBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                agentBtns.forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                agentType = btn.getAttribute('data-agent');
+                sessionId = Math.random().toString(36).substring(2); // 新しいセッションIDを発行
+                log.innerHTML = '';
+                appendSystemMessage(`「${btn.textContent}」に切り替えました。`);
+            });
+        });
+
+        // メッセージ送信
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = input.value.trim();
+            if (!message) return;
+            appendMessage('user', message);
+            input.value = '';
+            showLoading(true);
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: sessionId,
+                        agent_type: agentType
+                    })
+                });
+                const data = await res.json();
+                // エージェントの最終回答のみ表示
+                appendMessage('agent', data.response);
+            } catch (err) {
+                appendMessage('agent', 'エラーが発生しました。');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // メッセージ表示
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            div.innerHTML = `<strong>${role === 'user' ? 'あなた' : 'アシスタント'}:</strong> ${text.replace(/\n/g, '<br>')}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // システムメッセージ表示
+        function appendSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message system';
+            div.innerHTML = `<em>${text}</em>`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // ローディング表示切替
+        function showLoading(show) {
+            loading.style.display = show ? 'flex' : 'none';
+        }
+    </script>
+</body>
+</html>
